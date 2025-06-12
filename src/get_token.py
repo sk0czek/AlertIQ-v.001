@@ -7,7 +7,7 @@ import os
 
 load_dotenv()
 CLIENT_ID = os.getenv("ALLEGRO_CLIENT_ID")
-CLIENT_SECRET = os.getenv("ALLEGRO_CLIENT_SERCET")
+CLIENT_SECRET = os.getenv("ALLEGRO_CLIENT_SECRET")
 
 ALLEGRO_API_URL = "https://allegro.pl"
 
