@@ -1,12 +1,15 @@
 from analyzer import generate_report
 from get_orders import fetch_orders_data
-from datetime import date
+from mailer import send_report_email
+from datetime import date, timedelta
 
 def main():
     today = date.today()
+    klient = ""
     data = fetch_orders_data()
-    generate_report(data, today)
-
+    raport = generate_report(test_data, today)
+    send_report_email(klient, "test", raport)
+    print(raport)
 
 if __name__ == "__main__":
     main()
