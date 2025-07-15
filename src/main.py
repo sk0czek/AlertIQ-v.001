@@ -7,8 +7,8 @@ def main():
     today = date.today()
     klient = ""
     data = fetch_orders_data()
-    raport = generate_report(test_data, today)
-    send_report_email(klient, "test", raport)
+    raport = generate_report(data, today)
+    send_report_email(klient, "mail_subject", raport)
     print(raport)
 
 if __name__ == "__main__":

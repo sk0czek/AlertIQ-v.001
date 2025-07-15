@@ -67,9 +67,54 @@ def poll_for_token(device_code, interval):
 
 
 def save_tokens(tokens, filename="allegro_tokens.json"):
+    tokens["expires_at"] = int(time.time()) + tokens.get("expires_in", 43200)
     with open(filename, "w") as f:
         json.dump(tokens, f, indent=2)
     print(f"\n✅ Tokeny zapisane do pliku {filename}")
+
+def refresh_access_token(refresh_token, filename="allegro_tokens.json"):
+    headers = {
+        "Authorization": f"Basic {base64.b64encode(f'{CLIENT-ID}:{CLIENT_SECRET}'.encode()).decode()}",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token
+    }
+
+    resposne = requests.post(
+        f"{ALLERGRO_API_URL}/auth/oauth/token",
+        data=data,
+        headers=headers
+    )
+
+    if response.status_code == 200:
+        tokens=response.json()
+        save_tokens(tokens, filename)
+        print("🔁 Token został odświeżony.")
+        return tokens
+    else:
+        raise Exception(f"❌ Błąd odświeżania tokena: {response.status_code}, {response.text}")
+
+def load_tokens(filename="allegro_tokens.json"):
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"Plik z tokenami '{filename}' nie istenieje.")
+    
+    with open(filename, "r") as file:
+        return json.load(file)
+
+def get_valid_access_token():
+    tokens = load_tokens()
+    access_token = tokens.get("access_token")
+    expires_at = tokens.get("expires_at")
+
+    if not expires_at or time.time() >= expires_at:
+        print("⚠️ Access token wygasł – odświeżam...")
+        tokens = refresh_access_token(tokens["refresh_token"])
+        access_token = tokens["access_token"]
+    
+    return access_token
 
 
 def main():
