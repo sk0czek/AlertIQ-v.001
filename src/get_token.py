@@ -74,7 +74,7 @@ def save_tokens(tokens, filename="allegro_tokens.json"):
 
 def refresh_access_token(refresh_token, filename="allegro_tokens.json"):
     headers = {
-        "Authorization": f"Basic {base64.b64encode(f'{CLIENT-ID}:{CLIENT_SECRET}'.encode()).decode()}",
+        "Authorization": f"Basic {base64.b64encode(f'{CLIENT_ID}:{CLIENT_SECRET}'.encode()).decode()}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
 
@@ -83,8 +83,8 @@ def refresh_access_token(refresh_token, filename="allegro_tokens.json"):
         "refresh_token": refresh_token
     }
 
-    resposne = requests.post(
-        f"{ALLERGRO_API_URL}/auth/oauth/token",
+    response = requests.post(
+        f"{ALLEGRO_API_URL}/auth/oauth/token",
         data=data,
         headers=headers
     )
