@@ -14,13 +14,10 @@ EMAIL_FROM = os.getenv("EMAIL_FROM")
 
 def convert_text_to_html(text):
     return f"""<html>
-    <body>
-    <pre style="font-family: Consolas, monospace; font-size: 14px;">
-{text}
-    </pre>
+    <body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
+    {text}
     </body>
 </html>"""
-
 
 def send_report_email(to_email, subject, body):
     if not all([SMTP_SERVER, SMTP_PORT, SMTP_LOGIN, SMTP_PASSWORD, EMAIL_FROM]):
