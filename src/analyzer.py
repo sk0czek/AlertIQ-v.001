@@ -118,9 +118,30 @@ def get_recommendations(data, report_date):
         recommendations.append((least[0][0], "Rozważ wycofanie lub promocję"))
     return recommendations[:4]
 
+def render_html_table(rows, headers):
+    html = '<table style="border-collapse: collapse; width: 100%; font-family: monospace;">'
+    html += '<thead><tr>'
+    for h in headers:
+        html += f'<th style="border: 1px solid #ccc; padding: 6px;">{h}</th>'
+    html += '</tr></thead><tbody>'
+    for row in rows:
+        html += '<tr>'
+        for cell in row:
+            html += f'<td style="border: 1px solid #ccc; padding: 6px;">{cell}</td>'
+        html += '</tr>'
+    html += '</tbody></table>'
+    return html
+
 def generate_report(data, report_date):
+    from datetime import datetime
+
     today_sales = sum_sales_by_product(data, report_date)
     yesterday_sales = sum_sales_by_product(data, report_date - timedelta(days=1))
+    changes = compare_sales(today_sales, yesterday_sales)
+
+    total = total_revenue(data, report_date)
+    avg = get_average_order_value(data, report_date)
+    count = count_orders(data, report_date)
     sales_change = get_sales_change_percentage(data, report_date)
 
     top_new_product, top_new_product_sales = get_new_products(data, report_date) or ("Brak", 0)
@@ -135,50 +156,73 @@ def generate_report(data, report_date):
     worst = get_least_selling_products(data, report_date)
     recommendations = get_recommendations(data, report_date)
 
-    # Format product table
-    product_table = "| Produkt                        | Ilość | Zmiana vs wczoraj | Status |\n"
-    product_table += "|--------------------------------|-------|-------------------|--------|\n"
-    changes = compare_sales(today_sales, yesterday_sales)
+    # HTML TABLE
+    headers = ["Produkt", "Ilość", "Zmiana vs wczoraj", "Status"]
+    rows_html = ""
     for product, qty in sorted(today_sales.items(), key=lambda x: x[1], reverse=True):
-        product_name = product[:27] + "..." if len(product) > 27 else product
-        product_table += f"| {product_name.ljust(30)} | {str(qty).rjust(5)} | {changes.get(product, '').ljust(17)} | Stały |\n"
+        change = changes.get(product, "—")
+        status = "🆕" if "🆕" in change else "Stały"
+        rows_html += f"""
+        <tr>
+            <td style="border:1px solid #ccc; padding:6px;">{product}</td>
+            <td style="border:1px solid #ccc; padding:6px; text-align:center;">{qty}</td>
+            <td style="border:1px solid #ccc; padding:6px;">{change}</td>
+            <td style="border:1px solid #ccc; padding:6px;">{status}</td>
+        </tr>"""
 
-    # Format revenue trend
-    revenue_chart = " → ".join(f"{date.strftime('%d.%m')}: {value:.0f} zł" for date, value in daily_trend.items())
+    revenue_chart = "<br>".join([f"{date.strftime('%d.%m')}: {value:.0f} zł" for date, value in daily_trend.items()])
+    top3 = "".join([f"<li>{p} – {q} szt.</li>" for p, q in best])
+    worst3 = "".join([f"<li>{p} – {q} szt.</li>" for p, q in worst])
+    recos = "".join([f"<li><strong>{p}</strong>: {a}</li>" for p, a in recommendations])
 
     return f"""
-📊 AlertIQ – Raport Dzienny ({report_date.strftime('%d.%m.%Y')})
-=============================================================
+    <html>
+    <body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
+        <h2>📊 AlertIQ – Raport Dzienny ({report_date.strftime('%d.%m.%Y')})</h2>
+        <p><strong>Wygenerowano:</strong> {datetime.now().strftime('%d.%m.%Y %H:%M')}<br>
+        <strong>Sklep:</strong> AlertIQ (demo)</p>
 
-🕒 Wygenerowano: {datetime.now().strftime('%d.%m.%Y %H:%M')}
-🏪 Sklep: AlertIQ (demo)
+        <h3>🔍 Kluczowe Wnioski</h3>
+        <ul>
+            <li><strong>Sprzedaż:</strong> {total:.2f} zł ({sales_change}% vs wczoraj)</li>
+            <li><strong>Nowość:</strong> "{top_new_product}" – {top_new_product_sales} szt.</li>
+            <li><strong>Brak sprzedaży:</strong> "{stale_product}" – {stale_days} dzień bez zamówień</li>
+            <li><strong>Tygodniowy trend:</strong> {emoji} {weekly_trend_percent:.0f}% vs poprzedni tydzień</li>
+        </ul>
 
-## 🔍 Kluczowe Wnioski
-- **Sprzedaż**: {total_revenue(data, report_date)} zł ({sales_change}% vs wczoraj)
-- **Nowość**: "{top_new_product}" – {top_new_product_sales} szt.
-- **Brak sprzedaży**: "{stale_product}" – {stale_days} dzień bez zamówień
-- **Tygodniowy trend**: {emoji} {weekly_trend_percent:.0f}% vs poprzedni tydzień
+        <h3>💸 Podsumowanie Sprzedaży ({report_date.strftime('%d.%m.%Y')})</h3>
+        <table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+            <thead>
+                <tr>
+                    {''.join(f'<th style="border:1px solid #ccc; padding:6px; background:#f4f4f4;">{h}</th>' for h in headers)}
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
 
-## 💸 Podsumowanie Sprzedaży ({report_date.strftime('%d.%m.%Y')})
-{product_table}
+        <p>
+            <strong>Całkowity przychód:</strong> {total:.2f} zł<br>
+            <strong>Średnia wartość zamówienia:</strong> {avg}<br>
+            <strong>Liczba zamówień:</strong> {count}
+        </p>
 
-- **Całkowity przychód**: {total_revenue(data, report_date)} zł
-- **Średnia wartość zamówienia**: {get_average_order_value(data, report_date)}
-- **Liczba zamówień**: {count_orders(data, report_date)}
+        <h3>📈 Trend Przychodów (Ostatnie 7 dni)</h3>
+        <p style="white-space:pre-wrap;">{revenue_chart}</p>
 
-## 📈 Trend Przychodów (Ostatnie 7 Dni)
-{revenue_chart}
+        <h3>🏆 Top 3 Produkty Tygodnia</h3>
+        <ul>{top3}</ul>
 
-## 🏆 Top 3 Produkty Tygodnia
-""" + "\n".join([f"- {p} – {q} szt." for p, q in best]) + """
+        <h3>🐢 Produkty o Niskiej Sprzedaży</h3>
+        <ul>{worst3}</ul>
 
-## 🐢 Produkty o Niskiej Sprzedaży
-""" + "\n".join([f"- {p} – {q} szt." for p, q in worst]) + """
+        <h3>✅ Rekomendacje</h3>
+        <ul>{recos}</ul>
 
-## ✅ Rekomendacje
-""" + "\n".join([f"- **{p}**: {a}" for p, a in recommendations]) + """
-
-=============================================================
-📬 Kolejny raport: jutro o 9:00
-📩 Pytania? Skontaktuj się z AlertIQ: support@alertiq.com
-""".strip()
+        <hr>
+        <p>📬 Kolejny raport: jutro o 9:00<br>
+        📩 Pytania? Skontaktuj się z AlertIQ: <a href="mailto:support@alertiq.com">support@alertiq.com</a></p>
+    </body>
+    </html>
+    """
