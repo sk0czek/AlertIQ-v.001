@@ -30,7 +30,7 @@ def get_sales_change_percentage(data, report_date):
     delta = ((today-yesterday) / yesterday) * 100
     return f"{delta:.0f}"
 
-def compare_sales(today_sales, yesterday_sales):
+def compare_sales(today_sales, yesterday_les):
     result = {}
     for product in today_sales:
         today = today_sales[product]
@@ -133,8 +133,6 @@ def render_html_table(rows, headers):
     return html
 
 def generate_report(data, report_date):
-    from datetime import datetime
-
     today_sales = sum_sales_by_product(data, report_date)
     yesterday_sales = sum_sales_by_product(data, report_date - timedelta(days=1))
     changes = compare_sales(today_sales, yesterday_sales)
