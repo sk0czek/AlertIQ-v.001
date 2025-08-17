@@ -143,14 +143,4 @@ python src/get_token.py
 - [ ] Eksport do Excel/PDF
 - [ ] Więcej wskaźników KPI
 
-## 📄 Licencja
-
-MIT License - możesz używać, modyfikować i dystrybuować.
-
-## 🤝 Kontakt
-
-Masz pytania lub sugestie? Otwórz issue na GitHub!
-
 ---
-
-**AlertIQ** - Inteligentne raportowanie sprzedaży Allegro 🚀
