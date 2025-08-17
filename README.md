@@ -119,22 +119,6 @@ AlertIQ-v.001/
 ├── allegro_tokens.json  # Tokeny API (nie w git)
 └── requirements.txt     # Zależności Python
 ```
-
-## 🐛 Rozwiązywanie Problemów
-
-### **Błąd z tokenami**
-```bash
-python src/get_token.py
-```
-
-### **Błąd SMTP**
-- Sprawdź dane w `.env`
-- Dla Gmail użyj "App Password" zamiast hasła
-
-### **Brak danych**
-- Sprawdź czy masz aktywne zamówienia w Allegro
-- Upewnij się że aplikacja ma odpowiednie uprawnienia
-
 ## 🔮 Planowane Funkcje
 
 - [ ] Dashboard webowy
