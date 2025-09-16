@@ -49,8 +49,9 @@ def _parse_date_to_local(date_str: str) -> datetime.date:
     return local_dt.date()
 
 
-def fetch_orders_data():
-    access_token = get_valid_access_token()
+def fetch_orders_data(access_token: str | None = None):
+    if access_token is None:
+        access_token = get_valid_access_token()
     events_data = get_order_events(access_token)
 
     seen_ids = set()

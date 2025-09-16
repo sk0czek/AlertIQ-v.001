@@ -69,6 +69,31 @@ EMAIL_FROM=your_email@gmail.com
 EMAIL_TO=recipient@example.com
 ```
 
+### (Opcjonalnie) Multi-user z Supabase
+
+Dodaj do `.env`:
+
+```env
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# lub SUPABASE_ANON_KEY gdy nie zapisujesz tokenów (tylko odczyt)
+```
+
+Utwórz tabelę `users` o minimalnym schemacie:
+
+```
+users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  active boolean not null default true,
+  allegro_token_json jsonb,
+  refresh_token text,
+  expires_at bigint
+)
+```
+
+Skrypt `src/main.py` pobiera aktywnych użytkowników i wysyła raporty każdemu. Jeśli Supabase nie jest skonfigurowany, działa w trybie single-user z `.env`.
+
 ### 4. **Uzyskaj klucze Allegro API**
 1. Przejdź do [Allegro Developers](https://apps.developer.allegro.pl/)
 2. Utwórz nową aplikację
