@@ -1,104 +1,193 @@
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
 
+def validate_data(data, report_date):
+    """Walidacja danych wejściowych"""
+    if not data:
+        raise ValueError("Brak danych do analizy")
+    
+    if not isinstance(report_date, datetime) and not hasattr(report_date, 'date') and not hasattr(report_date, 'strftime'):
+        raise ValueError("Nieprawidłowy format daty")
+    
+    required_fields = ['data', 'produkt', 'sprzedano', 'cena_jednostkowa']
+    for i, row in enumerate(data):
+        if not isinstance(row, dict):
+            raise ValueError(f"Wiersz {i} nie jest słownikiem")
+        
+        for field in required_fields:
+            if field not in row:
+                raise ValueError(f"Brakuje pola '{field}' w wierszu {i}")
+        
+        if not isinstance(row['sprzedano'], (int, float)) or row['sprzedano'] < 0:
+            raise ValueError(f"Nieprawidłowa wartość sprzedaży w wierszu {i}")
+        
+        if not isinstance(row['cena_jednostkowa'], (int, float)) or row['cena_jednostkowa'] < 0:
+            raise ValueError(f"Nieprawidłowa cena jednostkowa w wierszu {i}")
+    
+    return True
+
 # ------------------ BASIC ------------------------
 def sum_sales_by_product(data, target_date):
+    """Sumuje sprzedaż według produktów dla określonej daty"""
+    if not data:
+        return {}
+    
     result = defaultdict(int)
     for row in data:
-        if row['data'] == target_date:
+        if row.get('data') == target_date:
             result[row['produkt']] += row['sprzedano']
     
     return result
 
 def total_revenue(data, target_date):
-    return round(sum(row['sprzedano']*row['cena_jednostkowa'] for row in data if row['data'] == target_date), 2)
+    """Oblicza całkowity przychód dla określonej daty"""
+    if not data:
+        return 0.0
+    
+    revenue = 0.0
+    for row in data:
+        if row.get('data') == target_date:
+            revenue += row['sprzedano'] * row['cena_jednostkowa']
+    
+    return round(revenue, 2)
 
 def get_average_order_value(data, target_date):
-    # Compute based on unique orders (if order_id available), else fallback to line-based average
+    """Oblicza średnią wartość zamówienia dla określonej daty"""
+    if not data:
+        return "Brak zamówień"
+    
     revenues_by_order = defaultdict(float)
-    num_orders = 0
     for row in data:
-        if row['data'] == target_date:
+        if row.get('data') == target_date:
             order_key = row.get('order_id') or (row['produkt'], row['data'])
             revenues_by_order[order_key] += row['sprzedano'] * row['cena_jednostkowa']
+    
     num_orders = len(revenues_by_order)
     if num_orders == 0:
         return "Brak zamówień"
+    
     avg = sum(revenues_by_order.values()) / num_orders
     return f"{avg:.2f} zł"
 
 def count_orders(data, target_date):
-    # Count unique orders if possible
+    """Liczy liczbę unikalnych zamówień dla określonej daty"""
+    if not data:
+        return 0
+    
     order_ids = set()
     for row in data:
-        if row['data'] == target_date:
+        if row.get('data') == target_date:
             order_ids.add(row.get('order_id') or (row['produkt'], row['data']))
     return len(order_ids)
 
 # ------------------ ZMIANY I POROWNANIA ----------
 def get_sales_change_percentage(data, report_date):
+    """Oblicza procentową zmianę sprzedaży w porównaniu do poprzedniego dnia"""
+    if not data:
+        return "Brak danych"
+    
     today = total_revenue(data, report_date)
     yesterday = total_revenue(data, report_date - timedelta(days=1))
 
     if yesterday == 0:
-        return "Brak danych"
-    delta = ((today-yesterday) / yesterday) * 100
-    return f"{delta:.0f}"
+        return "Brak danych" if today == 0 else "Nowa sprzedaż"
+    
+    delta = ((today - yesterday) / yesterday) * 100
+    return f"{delta:+.0f}"
 
 def compare_sales(today_sales, yesterday_sales):
+    """Porównuje sprzedaż produktów między dwoma dniami"""
+    if not today_sales:
+        return {}
+    
     result = {}
     for product in today_sales:
         today = today_sales[product]
         yesterday = yesterday_sales.get(product, 0)
+        
         if yesterday == 0:
             result[product] = "🆕 Nowy produkt"
         else:
             delta = ((today - yesterday) / yesterday) * 100
             emoji = "🔺" if delta > 0 else "🔻"
-            result[product] = f"{emoji} {delta:.0f}% vs wczoraj"
+            result[product] = f"{emoji} {delta:+.0f}% vs wczoraj"
+    
     return result
 
 # ----------------------- BEST / WORST --------------
 def get_best_selling_products(data, report_date, days=7, top_n=3):
+    """Znajduje najlepiej sprzedające się produkty w określonym okresie"""
+    if not data:
+        return []
+    
     sales = defaultdict(int)
     for row in data:
-        if 0 <= (report_date - row['data']).days < days:
+        if 0 <= (report_date - row.get('data', report_date)).days < days:
             sales[row['produkt']] += row['sprzedano']
+    
     return sorted(sales.items(), key=lambda x: x[1], reverse=True)[:top_n]
 
 def get_least_selling_products(data, report_date, days=7, bottom_n=3):
+    """Znajduje najgorzej sprzedające się produkty w określonym okresie"""
+    if not data:
+        return []
+    
     sales = defaultdict(int)
     for row in data:
-        if 0 <= (report_date - row['data']).days < days:
+        if 0 <= (report_date - row.get('data', report_date)).days < days:
             sales[row['produkt']] += row['sprzedano']
-    return sorted(sales.items(), key=lambda x:x[1])[:bottom_n]
+    
+    return sorted(sales.items(), key=lambda x: x[1])[:bottom_n]
 
 # ------------------- NOWE PRODUKTY I BRAKI
 def get_new_products(data, report_date):
-    today = set(row['produkt'] for row in data if row['data'] == report_date)
-    yesterday = set(row['produkt'] for row in data if row['data'] == report_date - timedelta(days=1))
+    """Znajduje nowe produkty wprowadzone w danym dniu"""
+    if not data:
+        return None, 0
+    
+    today = set(row['produkt'] for row in data if row.get('data') == report_date)
+    yesterday = set(row['produkt'] for row in data if row.get('data') == report_date - timedelta(days=1))
     new = today - yesterday
+    
+    if not new:
+        return None, 0
+    
     counter = Counter()
     for row in data:
-        if row['data'] == report_date and row['produkt'] in new:
+        if row.get('data') == report_date and row['produkt'] in new:
             counter[row['produkt']] += row['sprzedano']
+    
     if counter:
         return counter.most_common(1)[0]
     return None, 0
 
 def get_products_without_sales(data, report_date):
+    """Znajduje produkty, które miały sprzedaż wczoraj, ale nie dziś"""
+    if not data:
+        return []
+    
     today_sales = sum_sales_by_product(data, report_date)
     yesterday_sales = sum_sales_by_product(data, report_date - timedelta(days=1))
+    
     return [p for p in yesterday_sales if yesterday_sales[p] > 0 and today_sales.get(p, 0) == 0]
 
 def get_daily_revenue_trend(data, report_date, days=7):
+    """Tworzy trend przychodów dla określonej liczby dni"""
+    if not data:
+        return {}
+    
     trend = {}
     for i in reversed(range(days)):
         date = report_date - timedelta(days=i)
         trend[date] = total_revenue(data, date)
+    
     return trend
 
 def get_week_over_week_comparison(data, report_date):
+    """Porównuje sprzedaż tygodniową z poprzednim tygodniem"""
+    if not data:
+        return "Brak danych"
+    
     current_week_start = report_date - timedelta(days=report_date.weekday())
     previous_week_start = current_week_start - timedelta(days=7)
 
@@ -106,7 +195,10 @@ def get_week_over_week_comparison(data, report_date):
     previous_total = 0
 
     for row in data:
-        d = row['data']
+        d = row.get('data')
+        if d is None:
+            continue
+            
         rev = row['sprzedano'] * row['cena_jednostkowa']
         if current_week_start <= d <= report_date:
             current_total += rev
@@ -121,19 +213,32 @@ def get_week_over_week_comparison(data, report_date):
 
 # -------------------------- ZALECENIA ----------------
 def get_recommendations(data, report_date):
+    """Generuje rekomendacje na podstawie analizy sprzedaży"""
+    if not data:
+        return []
+    
     recommendations = []
+    
+    # Nowe produkty
     new, _ = get_new_products(data, report_date)
     if new:
         recommendations.append((new, "Zwiększ widoczność nowości"))
+    
+    # Produkty bez sprzedaży
     missing = get_products_without_sales(data, report_date)
     for m in missing[:1]:
         recommendations.append((m, "Sprawdź, czy oferta jest nadal aktywna"))
+    
+    # Najlepiej sprzedające się produkty
     top = get_best_selling_products(data, report_date)
     if top:
         recommendations.append((top[0][0], "Zabezpiecz stan magazynowy"))
+    
+    # Najgorzej sprzedające się produkty
     least = get_least_selling_products(data, report_date)
     if least:
         recommendations.append((least[0][0], "Rozważ wycofanie lub promocję"))
+    
     return recommendations[:4]
 
 def render_html_table(rows, headers):
@@ -152,6 +257,9 @@ def render_html_table(rows, headers):
 
 def get_seasonality_comparison(data, report_date):
     """Porównanie z tym samym dniem tygodnia z poprzednich tygodni"""
+    if not data:
+        return "Brak danych"
+    
     target_weekday = report_date.weekday()
     today_revenue = total_revenue(data, report_date)
     
@@ -176,30 +284,36 @@ def get_seasonality_comparison(data, report_date):
     change = ((today_revenue - avg_previous) / avg_previous) * 100
     return f"{change:+.0f}% vs średnia z poprzednich {len(previous_weeks)} tygodni"
 
-def get_conversion_rate(data, report_date):
-    """Wskaźnik konwersji - uproszczona wersja (można rozszerzyć o dane o wyświetleniach)"""
-    # Uproszczona wersja - stosunek zamówień do liczby produktów
+def get_conversion_rate(data, report_date, views_data=None):
+    """Wskaźnik konwersji - wymaga danych o wyświetleniach produktów"""
     today_orders = count_orders(data, report_date)
-    today_products = len(set(row['produkt'] for row in data if row['data'] == report_date))
     
-    if today_products == 0:
-        return "Brak danych"
+    if views_data is None:
+        return "Brak danych o wyświetleniach"
     
-    # Symulacja konwersji (w rzeczywistości potrzebne dane o wyświetleniach)
-    # Zakładamy, że każdy produkt miał 10 wyświetleń
-    estimated_views = today_products * 10
-    conversion = (today_orders / estimated_views) * 100 if estimated_views > 0 else 0
+    # Oblicz całkowitą liczbę wyświetleń dla danego dnia
+    today_views = sum(views_data.get(row['produkt'], 0) for row in data if row['data'] == report_date)
     
-    return f"{conversion:.1f}% (szacunkowo)"
+    if today_views == 0:
+        return "Brak wyświetleń"
+    
+    conversion = (today_orders / today_views) * 100
+    return f"{conversion:.1f}%"
 
 def get_aov_trend(data, report_date, days=7):
     """Trend średniej wartości zamówienia (AOV)"""
+    if not data:
+        return "Brak danych"
+    
     aov_values = []
     for i in range(days):
         date = report_date - timedelta(days=i)
         avg = get_average_order_value(data, date)
         if avg != "Brak zamówień":
-            aov_values.append(float(avg.replace(' zł', '')))
+            try:
+                aov_values.append(float(avg.replace(' zł', '')))
+            except ValueError:
+                continue
     
     if len(aov_values) < 2:
         return "Brak danych"
@@ -213,32 +327,40 @@ def get_aov_trend(data, report_date, days=7):
     change = ((current_aov - avg_previous) / avg_previous) * 100
     return f"{change:+.1f}% vs średnia z ostatnich {days-1} dni"
 
-def get_customer_retention(data, report_date, days=30):
-    """Wskaźnik retencji klientów (uproszczona wersja)"""
-    # Uproszczona wersja - sprawdzamy czy klienci wracają
-    # W rzeczywistości potrzebne dane o ID klientów
+def get_customer_retention(data, report_date, customer_data=None, days=30):
+    """Wskaźnik retencji klientów - wymaga danych o klientach"""
+    if customer_data is None:
+        return "Brak danych o klientach"
     
-    # Symulacja retencji na podstawie powtarzających się produktów
-    recent_products = set()
-    older_products = set()
+    # Znajdź klientów z ostatniego tygodnia
+    recent_customers = set()
+    older_customers = set()
     
     for row in data:
         days_diff = (report_date - row['data']).days
+        customer_id = row.get('customer_id')
+        
+        if customer_id is None:
+            continue
+            
         if 0 <= days_diff < 7:  # Ostatni tydzień
-            recent_products.add(row['produkt'])
+            recent_customers.add(customer_id)
         elif 7 <= days_diff < days:  # Starsze dane
-            older_products.add(row['produkt'])
+            older_customers.add(customer_id)
     
-    returning_products = recent_products.intersection(older_products)
+    returning_customers = recent_customers.intersection(older_customers)
     
-    if len(older_products) == 0:
+    if len(older_customers) == 0:
         return "Brak danych historycznych"
     
-    retention_rate = (len(returning_products) / len(older_products)) * 100
-    return f"{retention_rate:.1f}% produktów wróciło"
+    retention_rate = (len(returning_customers) / len(older_customers)) * 100
+    return f"{retention_rate:.1f}% klientów wróciło"
 
 def get_sales_stability(data, report_date, days=7):
     """Wskaźnik stabilności sprzedaży (odchylenie standardowe)"""
+    if not data:
+        return "Brak danych"
+    
     revenues = []
     for i in range(days):
         date = report_date - timedelta(days=i)
@@ -249,11 +371,11 @@ def get_sales_stability(data, report_date, days=7):
         return "Brak danych"
     
     mean_revenue = sum(revenues) / len(revenues)
-    variance = sum((x - mean_revenue) ** 2 for x in revenues) / len(revenues)
-    std_dev = variance ** 0.5
-    
     if mean_revenue == 0:
         return "Brak sprzedaży"
+    
+    variance = sum((x - mean_revenue) ** 2 for x in revenues) / len(revenues)
+    std_dev = variance ** 0.5
     
     coefficient_of_variation = (std_dev / mean_revenue) * 100
     
@@ -268,7 +390,7 @@ def get_sales_stability(data, report_date, days=7):
 
 def get_long_term_trend(data, report_date, days=30):
     """Wskaźnik trendu długoterminowego (ostatnie 30 dni)"""
-    if days < 2:
+    if not data or days < 2:
         return "Brak danych"
     
     # Podziel dane na dwie połowy
@@ -302,8 +424,15 @@ def get_long_term_trend(data, report_date, days=30):
 
 
 # ------------ RAPORT GLOWNY ---------------
-def generate_report(data, report_date):
+def generate_report(data, report_date, views_data=None, customer_data=None):
+    """Generuje raport analityczny dla określonej daty"""
     from datetime import datetime
+    
+    # Walidacja danych wejściowych
+    try:
+        validate_data(data, report_date)
+    except ValueError as e:
+        return f"<html><body><h1>Błąd walidacji danych</h1><p>{e}</p></body></html>"
 
     today_sales = sum_sales_by_product(data, report_date)
     yesterday_sales = sum_sales_by_product(data, report_date - timedelta(days=1))
@@ -332,9 +461,9 @@ def generate_report(data, report_date):
 
     # Nowe wskaźniki
     seasonality = get_seasonality_comparison(data, report_date)
-    conversion_rate = get_conversion_rate(data, report_date)
+    conversion_rate = get_conversion_rate(data, report_date, views_data)
     aov_trend = get_aov_trend(data, report_date)
-    customer_retention = get_customer_retention(data, report_date)
+    customer_retention = get_customer_retention(data, report_date, customer_data)
     sales_stability = get_sales_stability(data, report_date)
     long_term_trend = get_long_term_trend(data, report_date)
 
@@ -365,7 +494,7 @@ def generate_report(data, report_date):
         path_d = f"M {chart_data[0]['x']},{chart_data[0]['y']}"
 
     # Format recommendations
-    recos = "".join([f'<li style="margin-bottom: 8px;">{a}</li>' for _, a in recommendations])
+    recos = "".join([f'<li style="margin-bottom: 8px;">{r}</li>' for _, r in recommendations])
 
     return f"""
     <!DOCTYPE html>
@@ -644,7 +773,7 @@ def generate_report(data, report_date):
             <div class="header">
                 <h1>AlertIQ - Raport Dzienny</h1>
                 <div class="date">{report_date.strftime('%d.%m.%Y')}</div>
-                <div class="subtitle">Sklep: AlertIQ (demo)</div>
+                <div class="subtitle">Sklep: AlertIQ</div>
                 <div class="generated">Wygenerowano: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
             </div>
 

@@ -91,12 +91,26 @@ def refresh_access_token(refresh_token, filename="allegro_tokens.json"):
     )
 
     if response.status_code == 200:
-        tokens=response.json()
+        tokens = response.json()
         save_tokens(tokens, filename)
         print("🔁 Token został odświeżony.")
         return tokens
+    elif response.status_code == 400:
+        try:
+            error_data = response.json()
+            error_type = error_data.get("error", "unknown_error")
+            error_description = error_data.get("error_description", "Brak opisu błędu")
+            
+            if error_type == "invalid_grant":
+                raise Exception(f"❌ Refresh token wygasł lub jest nieprawidłowy: {error_description}")
+            elif error_type == "invalid_client":
+                raise Exception(f"❌ Błąd konfiguracji klienta: {error_description}")
+            else:
+                raise Exception(f"❌ Błąd odświeżania tokena ({error_type}): {error_description}")
+        except json.JSONDecodeError:
+            raise Exception(f"❌ Błąd odświeżania tokena: {response.status_code}, {response.text}")
     else:
-        raise Exception(f"❌ Błąd odświeżania tokena: {response.status_code}, {response.text}")
+        raise Exception(f"❌ Błąd HTTP podczas odświeżania tokena: {response.status_code}, {response.text}")
 
 def load_tokens(filename="allegro_tokens.json"):
     if not os.path.exists(filename):
@@ -118,8 +132,22 @@ def get_valid_access_token():
     return access_token
 
 
-def get_valid_access_token_from_dict(tokens: dict) -> str:
-    """Utility for per-user token dicts stored in DB."""
+def is_token_valid(access_token: str) -> bool:
+    """Test if access token is valid by making a simple API call."""
+    try:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get(f"{ALLEGRO_API_URL}/sale/offers", headers=headers, params={"limit": 1})
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def get_valid_access_token_from_dict(tokens: dict) -> tuple[str, dict | None]:
+    """
+    Utility for per-user token dicts stored in DB.
+    Returns (access_token, updated_tokens_or_none)
+    If tokens were refreshed, updated_tokens contains the new token payload to save to DB.
+    """
     if not tokens:
         raise ValueError("Brak tokenów Allegro dla użytkownika")
     access_token = tokens.get("access_token")
@@ -127,12 +155,26 @@ def get_valid_access_token_from_dict(tokens: dict) -> str:
     refresh_token_val = tokens.get("refresh_token")
     if not access_token:
         raise ValueError("Brak access_token w rekordzie użytkownika")
-    if not expires_at or time.time() >= int(expires_at):
+    
+    # Sprawdź czy token wygasł (tylko jeśli mamy expires_at)
+    if expires_at and time.time() >= int(expires_at):
         print("⚠️ Access token użytkownika wygasł – odświeżam...")
         refreshed = refresh_access_token(refresh_token_val)
         refreshed["expires_at"] = int(time.time()) + refreshed.get("expires_in", 43200)
-        return refreshed.get("access_token")
-    return access_token
+        return refreshed.get("access_token"), refreshed
+    
+    # Jeśli nie ma expires_at, sprawdź czy token działa
+    if not expires_at:
+        print("🔍 Sprawdzanie ważności tokenu (brak expires_at)...")
+        if not is_token_valid(access_token):
+            print("⚠️ Token nieprawidłowy – odświeżam...")
+            refreshed = refresh_access_token(refresh_token_val)
+            refreshed["expires_at"] = int(time.time()) + refreshed.get("expires_in", 43200)
+            return refreshed.get("access_token"), refreshed
+        else:
+            print("✅ Token jest prawidłowy")
+    
+    return access_token, None
 
 
 def refresh_tokens_dict(tokens: dict) -> dict:
@@ -178,7 +220,7 @@ def main():
             print(f"⚠️ Nie udało się zapisać tokenów do Supabase: {e}")
 
     print("\n🎉 Autoryzacja zakończona pomyślnie!")
-    print(f"Access token: {tokens['access_token'][:10]}...")  # skrócony do podglądu
+    print(f"Access token: {tokens['access_token'][:10]}...")
 
 if __name__ == "__main__":
     main()

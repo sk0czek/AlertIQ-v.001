@@ -12,13 +12,6 @@ SMTP_LOGIN = os.getenv("SMTP_LOGIN")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
 
-def convert_text_to_html(text):
-    return f"""<html>
-    <body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
-    {text}
-    </body>
-</html>"""
-
 def send_report_email(to_email, subject, body):
     if not all([SMTP_SERVER, SMTP_PORT, SMTP_LOGIN, SMTP_PASSWORD, EMAIL_FROM]):
         raise ValueError("Brakuje danych SMTP - sprawdz plik .env")
@@ -28,8 +21,7 @@ def send_report_email(to_email, subject, body):
     msg["To"] = to_email
     msg["Subject"] = subject
 
-    html_body = convert_text_to_html(body)
-    msg.attach(MIMEText(html_body, "html"))
+    msg.attach(MIMEText(body, "html"))
 
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:

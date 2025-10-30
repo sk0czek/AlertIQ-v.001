@@ -31,7 +31,7 @@ def list_active_users() -> List[Dict[str, Any]]:
 
 def get_user_token(user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     token = user.get("allegro_token_json")
-    return token
+    return token 
 
 
 def save_user_tokens(user_id: Any, token_payload: Dict[str, Any]):
